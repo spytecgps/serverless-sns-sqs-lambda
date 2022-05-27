@@ -143,9 +143,7 @@ commands:
     steps:
       - run:
           name: Unit tests
-          command: yarn jest --ci --runInBand --reporters=default --reporters=jest-junit --collectCoverage=true
-          environment:
-            JEST_JUNIT_OUTPUT_DIR: ./reports/junit/
+          command: npm run test
       - store_test_results:
           path: ./reports/junit/
       - store_artifacts:
