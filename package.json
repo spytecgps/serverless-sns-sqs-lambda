@@ -1,5 +1,5 @@
 {
-  "name": "@agiledigital/serverless-sns-sqs-lambda",
+  "name": "@spytecgps/serverless-sns-sqs-lambda",
   "version": "2.0.0",
   "description": "serverless plugin to make serverless-sns-sqs-lambda events",
   "main": "dist/index.js",
