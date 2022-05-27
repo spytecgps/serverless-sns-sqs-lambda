@@ -8,7 +8,7 @@ commands:
     description: Install dependencies
     steps:
       - run:
-          name: Setup NPM Token
+          name: Setup NPM Token 
           command: |
             echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
       - restore_cache:
