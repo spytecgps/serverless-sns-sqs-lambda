@@ -188,6 +188,7 @@ describe("Test Serverless SNS SQS Lambda", () => {
           kmsMasterKeyId: "some key",
           kmsDataKeyReusePeriodSeconds: 200,
           deadLetterMessageRetentionPeriodSeconds: 1209600,
+          disableDeadLettreQueue: false,
           enabled: false,
           visibilityTimeout: 999,
           rawMessageDelivery: true,
@@ -329,6 +330,39 @@ describe("Test Serverless SNS SQS Lambda", () => {
       });
     });
 
+    describe("when disable dead letter queue is true", () => {
+      it("should produce valid config without dead letter queue", () => {
+        const template = {
+          Resources: {
+            ...generateIamLambdaExecutionRole()
+          }
+        };
+        const testConfig = {
+          name: "some-name",
+          topicArn: "arn:aws:sns:us-east-2:123456789012:MyTopic",
+          disableDeadLetterQueue: true
+        };
+        const validatedConfig = serverlessSnsSqsLambda.validateConfig(
+          "test-function",
+          serverlessSnsSqsLambda.stage,
+          testConfig
+        );
+        serverlessSnsSqsLambda.addEventQueue(template, validatedConfig);
+        serverlessSnsSqsLambda.addEventDeadLetterQueue(
+          template,
+          validatedConfig
+        );
+        serverlessSnsSqsLambda.addEventSourceMapping(template, validatedConfig);
+        serverlessSnsSqsLambda.addTopicSubscription(template, validatedConfig);
+        serverlessSnsSqsLambda.addLambdaSqsPermissions(
+          template,
+          validatedConfig
+        );
+
+        expect(template).toMatchSnapshot();
+      });
+    });
+
     describe("when a custom role ARN is specified", () => {
       it("it should not crash and just skip creating the policies", () => {
         const template = {
@@ -441,7 +475,42 @@ describe("Test Serverless SNS SQS Lambda", () => {
         expect(template).toMatchSnapshot();
       });
     });
+
+    describe("when disable dead letter queue is true", () => {
+      it("should not produce dead letter queue configs", () => {
+        const template = {
+          Resources: {
+            ...generateIamLambdaExecutionRole()
+          }
+        };
+        const testConfig = {
+          name: "some-name",
+          topicArn: "arn:aws:sns:us-east-2:123456789012:MyTopic",
+          disableDeadLetterQueue: true
+        };
+        const validatedConfig = serverlessSnsSqsLambda.validateConfig(
+          "test-function",
+          serverlessSnsSqsLambda.stage,
+          testConfig
+        );
+        serverlessSnsSqsLambda.addEventQueue(template, validatedConfig);
+        serverlessSnsSqsLambda.addEventDeadLetterQueue(
+          template,
+          validatedConfig
+        );
+        serverlessSnsSqsLambda.addEventSourceMapping(template, validatedConfig);
+        serverlessSnsSqsLambda.addTopicSubscription(template, validatedConfig);
+        serverlessSnsSqsLambda.addLambdaSqsPermissions(
+          template,
+          validatedConfig
+        );
+
+        expect(template).toMatchSnapshot();
+      });
+    });
   });
+
+  
 
   describe("when the provider is specified via a provider option in serverless.yml", () => {
     beforeEach(() => {
@@ -503,6 +572,39 @@ describe("Test Serverless SNS SQS Lambda", () => {
           name: "some-name",
           topicArn: "arn:aws:sns:us-east-2:123456789012:MyTopic",
           fifo: true
+        };
+        const validatedConfig = serverlessSnsSqsLambda.validateConfig(
+          "test-function",
+          serverlessSnsSqsLambda.stage,
+          testConfig
+        );
+        serverlessSnsSqsLambda.addEventQueue(template, validatedConfig);
+        serverlessSnsSqsLambda.addEventDeadLetterQueue(
+          template,
+          validatedConfig
+        );
+        serverlessSnsSqsLambda.addEventSourceMapping(template, validatedConfig);
+        serverlessSnsSqsLambda.addTopicSubscription(template, validatedConfig);
+        serverlessSnsSqsLambda.addLambdaSqsPermissions(
+          template,
+          validatedConfig
+        );
+
+        expect(template).toMatchSnapshot();
+      });
+    });
+
+    describe("when disable dead letter queue is true", () => {
+      it("should not produce dead letter configs", () => {
+        const template = {
+          Resources: {
+            ...generateIamLambdaExecutionRole()
+          }
+        };
+        const testConfig = {
+          name: "some-name",
+          topicArn: "arn:aws:sns:us-east-2:123456789012:MyTopic",
+          disableDeadLetterQueue: true
         };
         const validatedConfig = serverlessSnsSqsLambda.validateConfig(
           "test-function",

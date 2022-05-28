@@ -21,6 +21,7 @@ type Config = {
   prefix: string;
   batchSize: number;
   maximumBatchingWindowInSeconds: number;
+  disableDeadLetterQueue: boolean;
   maxRetryCount: number;
   kmsMasterKeyId: string;
   kmsDataKeyReusePeriodSeconds: number;
@@ -126,6 +127,7 @@ const addResource = (
  *             batchSize: 2
  *             maximumBatchingWindowInSeconds: 30
  *             maxRetryCount: 2
+ *             disableDeadLetterQueue: false
  *             kmsMasterKeyId: alias/aws/sqs
  *             kmsDataKeyReusePeriodSeconds: 600
  *             deadLetterMessageRetentionPeriodSeconds: 1209600
@@ -178,6 +180,7 @@ export default class ServerlessSnsSqsLambda {
           maximum: 300
         },
         maxRetryCount: { type: "number" },
+        disableDeadLetterQueue: { type: "boolean" },
         kmsMasterKeyId: {
           anyOf: [{ type: "string" }, { $ref: "#/definitions/awsArn" }]
         },
@@ -305,6 +308,7 @@ Usage
             topicArn: !Ref TopicArn                          # required
             prefix: some-prefix                              # optional - default is \`\${this.serviceName}-\${stage}-\${funcNamePascalCase}\`
             maxRetryCount: 2                                 # optional - default is 5
+            disableDeadLetterQueue: false                    # optional - default is false
             batchSize: 1                                     # optional - default is 10
             batchWindow: 10                                  # optional - default is 0 (no batch window)
             kmsMasterKeyId: alias/aws/sqs                    # optional - default is none (no encryption)
@@ -349,6 +353,10 @@ Usage
         config.prefix || `${this.serviceName}-${stage}-${funcNamePascalCase}`,
       batchSize: parseIntOr(config.batchSize, 10),
       maxRetryCount: parseIntOr(config.maxRetryCount, 5),
+      disableDeadLetterQueue:
+        config.disableDeadLetterQueue !== undefined
+          ? config.disableDeadLetterQueue
+          : false,
       kmsMasterKeyId: config.kmsMasterKeyId,
       kmsDataKeyReusePeriodSeconds: config.kmsDataKeyReusePeriodSeconds,
       deadLetterMessageRetentionPeriodSeconds:
@@ -414,6 +422,7 @@ Usage
   addEventDeadLetterQueue(
     template,
     {
+      disableDeadLetterQueue,
       name,
       prefix,
       fifo,
@@ -424,6 +433,11 @@ Usage
       omitPhysicalId
     }
   ) {
+
+    if(disableDeadLetterQueue){
+      return;
+    }
+
     const candidateQueueName = `${prefix}${name}DeadLetterQueue${
       fifo ? ".fifo" : ""
     }`;
@@ -469,6 +483,7 @@ Usage
       prefix,
       fifo,
       maxRetryCount,
+      disableDeadLetterQueue,
       kmsMasterKeyId,
       kmsDataKeyReusePeriodSeconds,
       visibilityTimeout,
@@ -484,12 +499,16 @@ Usage
           ? {}
           : { QueueName: validateQueueName(candidateQueueName) }),
         ...(fifo ? { FifoQueue: true } : {}),
-        RedrivePolicy: {
-          deadLetterTargetArn: {
-            "Fn::GetAtt": [`${name}DeadLetterQueue`, "Arn"]
-          },
-          maxReceiveCount: maxRetryCount
-        },
+        ...(disableDeadLetterQueue
+          ? {}
+          : {
+              RedrivePolicy: {
+                deadLetterTargetArn: {
+                  "Fn::GetAtt": [`${name}DeadLetterQueue`, "Arn"]
+                },
+                maxReceiveCount: maxRetryCount
+              }
+            }),
         ...(kmsMasterKeyId !== undefined
           ? {
               KmsMasterKeyId: kmsMasterKeyId
@@ -580,7 +599,10 @@ Usage
    * @param {object} template the template which gets mutated
    * @param {{name, prefix}} config the name of the queue the lambda is subscribed to
    */
-  addLambdaSqsPermissions(template, { name, kmsMasterKeyId }) {
+  addLambdaSqsPermissions(
+    template,
+    { name, kmsMasterKeyId, disableDeadLetterQueue }
+  ) {
     if (template.Resources.IamRoleLambdaExecution === undefined) {
       // The user has set their own custom role ARN so the Serverless generated role is not generated
       // We can safely skip this step because the owner of the custom role ARN is responsible for setting
@@ -598,7 +620,9 @@ Usage
         ],
         Resource: [
           { "Fn::GetAtt": [`${name}Queue`, "Arn"] },
-          { "Fn::GetAtt": [`${name}DeadLetterQueue`, "Arn"] }
+          ...(disableDeadLetterQueue
+            ? []
+            : [{ "Fn::GetAtt": [`${name}DeadLetterQueue`, "Arn"] }])
         ]
       }
     );
