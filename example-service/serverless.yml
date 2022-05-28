@@ -82,4 +82,4 @@ resources:
               Resource: "*"
 
 plugins:
-  - "@agiledigital/serverless-sns-sqs-lambda"
+  - "@spytecgps/serverless-sns-sqs-lambda"
