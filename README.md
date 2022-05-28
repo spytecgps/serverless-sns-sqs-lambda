@@ -6,7 +6,7 @@
 [![Type Coverage](https://img.shields.io/badge/dynamic/json.svg?label=type-coverage&prefix=%E2%89%A5&suffix=%&query=$.typeCoverage.atLeast&uri=https%3A%2F%2Fraw.githubusercontent.com%2Fagiledigital%2Fserverless-sns-sqs-lambda%2Fmaster%2Fpackage.json)](https://github.com/plantain-00/type-coverage)
 [![Language grade: JavaScript](https://img.shields.io/lgtm/grade/javascript/g/agiledigital/serverless-sns-sqs-lambda.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/agiledigital/serverless-sns-sqs-lambda/context:javascript)
 [![semantic-release](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg)](https://github.com/semantic-release/semantic-release)
-![npm](https://img.shields.io/npm/v/@agiledigital/serverless-sns-sqs-lambda)
+![npm](https://img.shields.io/npm/v/@spytecgps/serverless-sns-sqs-lambda)
 
 This is a Serverless Framework plugin for AWS lambda Functions. Currently, it
 is possible to subscribe directly to an SNS topic. However, if you want to
@@ -24,18 +24,20 @@ and a `maxRetryCount` as simply as subscribing directly to the sns topic.
 
 Run `npm install` in your Serverless project.
 
-`$ npm install --save-dev @agiledigital/serverless-sns-sqs-lambda`
+`$ npm install --save-dev @spytecgps/serverless-sns-sqs-lambda`
 
 Add the plugin to your serverless.yml file
 
 ```yml
 plugins:
-  - "@agiledigital/serverless-sns-sqs-lambda"
+  - "@spytecgps/serverless-sns-sqs-lambda"
 ```
 
 ## Setup
 
 Provide the lambda function with the snsSqs event, the plugin will add the AWS SNS topic and subscription, SQS queue and dead letter queue, and the role need for the lambda.
+
+If no dead letter is configured, messages will be procesed until successed.
 
 ```yml
 functions:
@@ -49,6 +51,7 @@ functions:
           batchSize: 2 # Optional - default value is 10
           maximumBatchingWindowInSeconds: 10 # optional - default is 0 (no batch window)
           maxRetryCount: 2 # Optional - default value is 5
+          disableDeadLetterQueue: false # Optional - default value is false
           kmsMasterKeyId: !GetAtt SQSQueueKey.Arn # optional - default is none (no encryption) - see Notes on Encryption section below
           kmsDataKeyReusePeriodSeconds: 600 # optional - AWS default is 300 seconds
           deadLetterMessageRetentionPeriodSeconds: 1209600 # optional - AWS default is 345600 secs (4 days)
@@ -87,7 +90,7 @@ resources:
         TopicName: TestTopic
 
 plugins:
-  - "@agiledigital/serverless-sns-sqs-lambda"
+  - "@spytecgps/serverless-sns-sqs-lambda"
 ```
 
 ### What is the omitPhysicalId option?
