@@ -1,3 +1,16 @@
+# ⚠️ DEPRECATED
+
+> [!CAUTION]
+> The only reason of this fork was to add the possibility of disable the dead letter queue. The main project already support this feature, so the fork is no longer needed.
+
+</br>
+</br>
+</br>
+</br>
+</br>
+</br>
+</br>
+
 # Serverless Sns Sqs Lambda
 
 [![serverless](http://public.serverless.com/badges/v3.svg)](http://www.serverless.com)
