@@ -21,11 +21,11 @@ type Config = {
   prefix: string;
   batchSize: number;
   maximumBatchingWindowInSeconds: number;
-  disableDeadLetterQueue: boolean;
   maxRetryCount: number;
   kmsMasterKeyId: string;
   kmsDataKeyReusePeriodSeconds: number;
   deadLetterMessageRetentionPeriodSeconds: number;
+  deadLetterQueueEnabled: boolean;
   enabled: boolean;
   fifo: boolean;
   visibilityTimeout: number;
@@ -127,10 +127,10 @@ const addResource = (
  *             batchSize: 2
  *             maximumBatchingWindowInSeconds: 30
  *             maxRetryCount: 2
- *             disableDeadLetterQueue: false
  *             kmsMasterKeyId: alias/aws/sqs
  *             kmsDataKeyReusePeriodSeconds: 600
  *             deadLetterMessageRetentionPeriodSeconds: 1209600
+ *             deadLetterQueueEnabled: true
  *             visibilityTimeout: 120
  *             rawMessageDelivery: true
  *             enabled: false
@@ -172,6 +172,7 @@ export default class ServerlessSnsSqsLambda {
       properties: {
         name: { type: "string" },
         topicArn: { $ref: "#/definitions/awsArn" },
+        prefix: { type: "string" },
         omitPhysicalId: { type: "boolean" },
         batchSize: { type: "number", minimum: 1, maximum: 10000 },
         maximumBatchingWindowInSeconds: {
@@ -180,7 +181,6 @@ export default class ServerlessSnsSqsLambda {
           maximum: 300
         },
         maxRetryCount: { type: "number" },
-        disableDeadLetterQueue: { type: "boolean" },
         kmsMasterKeyId: {
           anyOf: [{ type: "string" }, { $ref: "#/definitions/awsArn" }]
         },
@@ -199,6 +199,7 @@ export default class ServerlessSnsSqsLambda {
           minimum: 60,
           maximum: 1209600
         },
+        deadLetterQueueEnabled: { type: "boolean" },
         rawMessageDelivery: { type: "boolean" },
         enabled: { type: "boolean" },
         fifo: { type: "boolean" },
@@ -308,12 +309,12 @@ Usage
             topicArn: !Ref TopicArn                          # required
             prefix: some-prefix                              # optional - default is \`\${this.serviceName}-\${stage}-\${funcNamePascalCase}\`
             maxRetryCount: 2                                 # optional - default is 5
-            disableDeadLetterQueue: false                    # optional - default is false
             batchSize: 1                                     # optional - default is 10
             batchWindow: 10                                  # optional - default is 0 (no batch window)
             kmsMasterKeyId: alias/aws/sqs                    # optional - default is none (no encryption)
             kmsDataKeyReusePeriodSeconds: 600                # optional - AWS default is 300 seconds
             deadLetterMessageRetentionPeriodSeconds: 1209600 # optional - AWS default is 345600 secs (4 days)
+            deadLetterQueueEnabled: true                     # optional - default is enabled
             enabled: true                                    # optional - AWS default is true
             fifo: false                                      # optional - AWS default is false
             visibilityTimeout: 30                            # optional - AWS default is 30 seconds
@@ -353,14 +354,14 @@ Usage
         config.prefix || `${this.serviceName}-${stage}-${funcNamePascalCase}`,
       batchSize: parseIntOr(config.batchSize, 10),
       maxRetryCount: parseIntOr(config.maxRetryCount, 5),
-      disableDeadLetterQueue:
-        config.disableDeadLetterQueue !== undefined
-          ? config.disableDeadLetterQueue
-          : false,
       kmsMasterKeyId: config.kmsMasterKeyId,
       kmsDataKeyReusePeriodSeconds: config.kmsDataKeyReusePeriodSeconds,
       deadLetterMessageRetentionPeriodSeconds:
         config.deadLetterMessageRetentionPeriodSeconds,
+      deadLetterQueueEnabled:
+        config.deadLetterQueueEnabled !== undefined
+          ? config.deadLetterQueueEnabled
+          : true,
       enabled: config.enabled,
       fifo: config.fifo !== undefined ? config.fifo : false,
       visibilityTimeout: config.visibilityTimeout,
@@ -422,7 +423,6 @@ Usage
   addEventDeadLetterQueue(
     template,
     {
-      disableDeadLetterQueue,
       name,
       prefix,
       fifo,
@@ -430,14 +430,13 @@ Usage
       kmsDataKeyReusePeriodSeconds,
       deadLetterMessageRetentionPeriodSeconds,
       deadLetterQueueOverride,
+      deadLetterQueueEnabled,
       omitPhysicalId
     }
   ) {
-
-    if(disableDeadLetterQueue){
+    if (!deadLetterQueueEnabled) {
       return;
     }
-
     const candidateQueueName = `${prefix}${name}DeadLetterQueue${
       fifo ? ".fifo" : ""
     }`;
@@ -483,12 +482,12 @@ Usage
       prefix,
       fifo,
       maxRetryCount,
-      disableDeadLetterQueue,
       kmsMasterKeyId,
       kmsDataKeyReusePeriodSeconds,
       visibilityTimeout,
       mainQueueOverride,
-      omitPhysicalId
+      omitPhysicalId,
+      deadLetterQueueEnabled
     }: Config
   ) {
     const candidateQueueName = `${prefix}${name}Queue${fifo ? ".fifo" : ""}`;
@@ -499,16 +498,16 @@ Usage
           ? {}
           : { QueueName: validateQueueName(candidateQueueName) }),
         ...(fifo ? { FifoQueue: true } : {}),
-        ...(disableDeadLetterQueue
-          ? {}
-          : {
+        ...(deadLetterQueueEnabled
+          ? {
               RedrivePolicy: {
                 deadLetterTargetArn: {
                   "Fn::GetAtt": [`${name}DeadLetterQueue`, "Arn"]
                 },
                 maxReceiveCount: maxRetryCount
               }
-            }),
+            }
+          : {}),
         ...(kmsMasterKeyId !== undefined
           ? {
               KmsMasterKeyId: kmsMasterKeyId
@@ -601,7 +600,7 @@ Usage
    */
   addLambdaSqsPermissions(
     template,
-    { name, kmsMasterKeyId, disableDeadLetterQueue }
+    { name, kmsMasterKeyId, deadLetterQueueEnabled }
   ) {
     if (template.Resources.IamRoleLambdaExecution === undefined) {
       // The user has set their own custom role ARN so the Serverless generated role is not generated
@@ -609,7 +608,10 @@ Usage
       // this the relevant policy to allow the lambda to access the queue.
       return;
     }
-
+    const queues = [{ "Fn::GetAtt": [`${name}Queue`, "Arn"] }];
+    if (deadLetterQueueEnabled) {
+      queues.push({ "Fn::GetAtt": [`${name}DeadLetterQueue`, "Arn"] });
+    }
     template.Resources.IamRoleLambdaExecution.Properties.Policies[0].PolicyDocument.Statement.push(
       {
         Effect: "Allow",
@@ -618,12 +620,7 @@ Usage
           "sqs:DeleteMessage",
           "sqs:GetQueueAttributes"
         ],
-        Resource: [
-          { "Fn::GetAtt": [`${name}Queue`, "Arn"] },
-          ...(disableDeadLetterQueue
-            ? []
-            : [{ "Fn::GetAtt": [`${name}DeadLetterQueue`, "Arn"] }])
-        ]
+        Resource: queues
       }
     );
 
